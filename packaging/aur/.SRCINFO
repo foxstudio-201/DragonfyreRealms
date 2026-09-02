@@ -1,0 +1,22 @@
+pkgbase = dragonfyre-realms-local
+	pkgdesc = Dragonfyre Realms - Minecraft Launcher by FoxStudio (local build)
+	pkgver = 1.0
+	pkgrel = 6
+	url = https://github.com/foxstudio-201/DragonfyreRealms
+	arch = x86_64
+	license = MIT
+	depends = gtk3
+	depends = nss
+	depends = alsa-lib
+	depends = libnotify
+	optdepends = libappindicator-gtk3: tray icon support
+	provides = dragonfyre-realms
+	conflicts = dragonfyre-realms
+	options = !strip
+	options = !debug
+	source = linux-unpacked.tar.xz
+	source = dragonfyre-realms.png
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = dragonfyre-realms-local

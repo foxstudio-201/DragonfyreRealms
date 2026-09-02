@@ -1,0 +1,162 @@
+{
+  "name": "dragonfyre-realms",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dragonfyre Realms - Minecraft Launcher by FoxStudios",
+  "author": {
+    "name": "FoxStudio",
+    "email": "contact@foxstudio.dev"
+  },
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --no-open",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "gen:icon": "node scripts/generate-icon.cjs",
+    "gen:png": "node scripts/generate-png-icon.cjs",
+    "patch:icon": "node scripts/generate-icon.cjs && node scripts/patch-electron-icon.cjs",
+    "postinstall": "node scripts/gen-app-secret.cjs & node scripts/generate-icon.cjs & node scripts/patch-electron-icon.cjs"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "discord-rpc": "^4.0.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "rcedit": "^5.0.2",
+    "vite": "^8.0.10",
+    "wait-on": "^9.0.5",
+    "@heroicons/react": "^2.2.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "@tailwindcss/vite": "^4.3.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "tailwindcss": "^4.3.0"
+  },
+  "build": {
+    "appId": "com.dragonfyrerealms.launcher",
+    "productName": "Dragonfyre Realms",
+    "copyright": "Copyright © 2024 FoxStudio",
+    "asar": true,
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "build-resources"
+    },
+    "electronLanguages": [
+      "vi",
+      "en-US"
+    ],
+    "compression": "maximum",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "!electron/launcher/_logblock.txt",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "public/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "public/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "forceCodeSigning": false
+    },
+    "linux": {
+      "executableName": "dragonfyre-realms",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/icon.png",
+      "category": "Game",
+      "maintainer": "FoxStudio <contact@foxstudio.dev>"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "public/icon.png",
+      "category": "public.app-category.games",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dragonfyre Realms"
+    },
+    "publish": null
+  }
+}

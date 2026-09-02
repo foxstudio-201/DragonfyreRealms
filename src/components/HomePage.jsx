@@ -1,0 +1,1059 @@
+/**
+ * Dragonfyre Realms — Minecraft Launcher
+ * Created by FoxStudio. AI-assisted development.
+ *
+ * Source code : https://github.com/foxstudio-201/VoxelXLauncher
+ * Website     : https://voxxelxclient.vercel.app
+ *
+ * NOTICE:
+ *   - This software is provided as-is without warranty of any kind.
+ *   - Do not redistribute or resell without explicit permission from FoxStudio.
+ *   - If you use or reference this code, please credit FoxStudio.
+ *   - Minecraft is a trademark of Mojang Studios / Microsoft. This project is not affiliated with Mojang.
+ */
+/**
+ * Dragonfyre Realms — Minecraft Launcher
+ * Created by FoxStudio. AI-assisted development.
+ *
+ * Source code : https://github.com/foxstudio-201/VoxelXLauncher
+ * Website     : https://voxxelxclient.vercel.app
+ *
+ * NOTICE:
+ *   - Dành cho mấy cháu cứ thích phỉ báng.
+ *   - Launcher sử dụng ai đi kèm trong việc tạo, bản thân người tạo không tự nhận là code toàn bộ do có sự hỗ trợ của ai.
+ *   - Giỏi giang thì tự code bằng năng lực của mình đang video làm toàn bộ từ đầu đến cuối, còn không làm được đừng có kích đểu ảnh hưởng đến người sử dụng.
+ *   - Bạn chẳng phải là anh hùng mặc áo choàng đỏ mặc quần xịt như thằng trẻ trâu rồi lên mạng ra vẻ ta đây là người tốt, là anh hùng, là người bảo vệ công lý gì đâu :).
+ *   - Vậy nên bớt ảo tưởng đi.
+ *   - Nếu có sử dụng hoặc tham khảo code này, hãy ghi công cho FoxStudio.
+ *   - Minecraft là một thương hiệu của Mojang Studios / Microsoft. Dự án này không liên kết với Mojang.
+ */
+import { useState, useRef, useEffect } from 'react'
+import { useAccounts } from '../hooks/useAccounts'
+import { useLang } from '../i18n/LangProvider'
+import { Gear, PlayCircle, Check, Sword, Campfire, Mountains, ArrowClockwise, FolderOpen, SlidersHorizontal, Memory, GraphicsCard } from '@phosphor-icons/react'
+import ProfileSettingsPanel from './home/ProfileSettingsPanel'
+import GamingModalWrapper from './ui/GamingModalWrapper'
+import LogPanel from './LogPanel'
+import DownloadErrorModal from './DownloadErrorModal'
+import ProfileFilesModal from './ProfileFilesModal'
+import AppBackground from './AppBackground'
+import SystemInfo from './SystemInfo'
+import PlayerHead from './ui/PlayerHead'
+import { offlineUUID } from '../utils/offlineUUID'
+import vanillaIcon from '../assets/loader/vanilla.png'
+import fabricIcon from '../assets/loader/fabric.png'
+import forgeIcon from '../assets/loader/forge.png'
+import neoforgeIcon from '../assets/loader/neoforge.png'
+import dragonfyreLogo from '../assets/dragonfyre-logo-better.png'
+
+const LOADER_ICONS = {
+  vanilla: vanillaIcon,
+  fabric: fabricIcon,
+  forge: forgeIcon,
+  neoforge: neoforgeIcon,
+}
+
+const LOADER_COLORS = {
+  vanilla:  { primary: '#a78bfa', secondary: '#7c3aed' },
+  fabric:   { primary: '#a78bfa', secondary: '#7c3aed' },
+  forge:    { primary: '#a78bfa', secondary: '#7c3aed' },
+  neoforge: { primary: '#fb7185', secondary: '#e11d48' },
+}
+
+function getLoaderTag(p) {
+  if (!p) return ''
+  if (p.loader === 'vanilla') return 'Vanilla'
+  const l = p.loader.charAt(0).toUpperCase() + p.loader.slice(1)
+  return p.loaderVersion ? `${l} ${p.loaderVersion}` : l
+}
+
+function fmtBytes(b) {
+  if (b == null) return '0 MB'
+  if (b >= 1024 * 1024 * 1024) return (b / 1024 / 1024 / 1024).toFixed(2) + ' GB'
+  return (b / 1024 / 1024).toFixed(1) + ' MB'
+}
+
+function fmtEta(ms) {
+  if (ms == null || !isFinite(ms) || ms < 0) return null
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `~${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `~${m}p ${s % 60}s`
+  return `~${Math.floor(m / 60)}g ${m % 60}p`
+}
+
+function fmtSpeed(bps) {
+  if (bps == null || !isFinite(bps) || bps <= 0) return '0 KB'
+  if (bps >= 1024 * 1024 * 1024) return (bps / 1024 / 1024 / 1024).toFixed(2) + ' GB'
+  if (bps >= 1024 * 1024) return (bps / 1024 / 1024).toFixed(1) + ' MB'
+  return (bps / 1024).toFixed(0) + ' KB'
+}
+
+export default function HomePage({ launchState, launchError, onLaunch, instances, onKillInstance, onLogPanelOpen }) {
+  const { t } = useLang()
+  const { accounts, selectedAccount, addAccount, selectAccount } = useAccounts()
+  const accountId = selectedAccount?.id
+  const [profiles, setProfiles] = useState([])
+  const [profileSettingsOpen, setProfileSettingsOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [filesModalOpen, setFilesModalOpen] = useState(false)
+  const profileMenuRef = useRef(null)
+  const profileMenuPanelRef = useRef(null)
+
+  useEffect(() => {
+    if (!profileMenuOpen) return
+    function onDown(e) {
+      const inToggle = profileMenuRef.current && profileMenuRef.current.contains(e.target)
+      const inPanel = profileMenuPanelRef.current && profileMenuPanelRef.current.contains(e.target)
+      if (!inToggle && !inPanel) setProfileMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [profileMenuOpen])
+  const [logPanelVisible, setLogPanelVisible] = useState(false)
+  const [logManuallyClosed, setLogManuallyClosed] = useState(false)
+  const [persistedLauncherLogs, setPersistedLauncherLogs] = useState([])
+  const [predownload, setPredownload] = useState(null)
+  const [preDl, setPreDl] = useState(null)
+  const [dSync, setDSync] = useState(null)
+  const [repair, setRepair] = useState(null)
+  const dSyncChecked = useRef(false)
+  const preDlStarted = useRef(false)
+  const preDlRef = useRef(null)
+  const dSyncRef = useRef(null)
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const checkingUpdatesRef = useRef(false)
+  const [dataUpdate, setDataUpdate] = useState(false)
+  const [dataUpdateVer, setDataUpdateVer] = useState('')
+  const [usernameInput, setUsernameInput] = useState('')
+  const [usernameError, setUsernameError] = useState('')
+  const [serverStatus, setServerStatus] = useState(null)
+  const newLaunchRef = useRef(false)
+  const isElectron = typeof window !== 'undefined' && window.electronAPI
+  const initLoaded = useRef(false)
+  const usernameRef = useRef(null)
+
+  
+  useEffect(() => {
+    if (selectedAccount?.username) setUsernameInput(selectedAccount.username)
+  }, [selectedAccount?.id])
+
+  
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI.getServerStatus) return
+    let cancelled = false
+    const poll = () => {
+      window.electronAPI.getServerStatus()
+        .then(s => { if (!cancelled) setServerStatus(s || null) })
+        .catch(() => { if (!cancelled) setServerStatus(null) })
+    }
+    poll()
+    const id = setInterval(poll, 8000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI.onPreDownloadProgress) return
+    return window.electronAPI.onPreDownloadProgress(data => {
+      setPredownload(prev => prev ? { ...prev, log: data.log, percent: data.percent } : null)
+      if (data.phase === 'paused') setPausedOp('preDl')
+      else if (data.phase === 'cancelled') setPausedOp(null)
+      setPreDl(prev => {
+        const phases = { ...(prev?.phases || {}) }
+        if (data.phase !== 'done' && data.item) phases[data.phase] = { item: data.item, percent: data.percent ?? 0, eta: data.eta, log: data.log }
+        return { active: true, closing: false, phase: data.phase, item: data.item, percent: data.percent ?? 0, eta: data.eta, log: data.log, phases }
+      })
+      if (data.phase === 'done') {
+        setTimeout(() => {
+          setPreDl(prev => prev ? { ...prev, closing: true } : prev)
+          setTimeout(() => setPreDl(prev => prev ? { ...prev, active: false, closing: false } : prev), 450)
+        }, 2500)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI.onDataSyncProgress) return
+    return window.electronAPI.onDataSyncProgress(data => {
+      if (data.phase === 'paused') setPausedOp('dSync')
+      else if (data.phase === 'cancelled') setPausedOp(null)
+      setDSync(prev => ({ ...(prev || {}), active: true, closing: false, ...data }))
+      if (data.phase === 'done') {
+        setTimeout(() => {
+          setDSync(prev => prev ? { ...prev, closing: true } : prev)
+          setTimeout(() => setDSync(prev => prev ? { ...prev, active: false, closing: false } : prev), 450)
+        }, 2500)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI.onRepairProgress) return
+    return window.electronAPI.onRepairProgress(data => {
+      if (data.phase === 'paused') setPausedOp('repair')
+      else if (data.phase === 'cancelled') setPausedOp(null)
+      setRepair(prev => ({ ...(prev || {}), active: true, closing: false, ...data }))
+      if (data.phase === 'done') {
+        setTimeout(() => {
+          setRepair(prev => prev ? { ...prev, closing: true } : prev)
+          setTimeout(() => setRepair(prev => prev ? { ...prev, active: false, closing: false } : prev), 450)
+        }, 2500)
+      }
+    })
+  }, [])
+
+  
+  
+  async function checkDataVersions({ toast = false } = {}) {
+    if (!isElectron || !window.electronAPI.checkDataSync) return
+    if (checkingUpdatesRef.current) return
+    if (preDlRef.current?.active && !preDlRef.current?.closing) return
+    checkingUpdatesRef.current = true
+    setCheckingUpdates(true)
+    const result = { dataUpdate: false, dataLatest: '', dataError: null }
+    setDSync({ active: true, closing: false, phase: 'check', item: 'Dữ liệu', percent: 0, log: 'Đang kiểm tra phiên bản dữ liệu...' })
+    const closeModal = () => {
+      setDSync(prev => {
+        if (!prev?.active || prev.closing) return prev
+        return { ...prev, phase: 'done', item: 'Dữ liệu', percent: 100, log: 'Đã kiểm tra phiên bản dữ liệu' }
+      })
+      setTimeout(() => setDSync(prev => prev && !prev.closing ? { ...prev, closing: true } : prev), 1500)
+      setTimeout(() => setDSync(prev => prev ? { ...prev, active: false, closing: false } : prev), 2000)
+    }
+    const closeAndMaybeToast = (msg) => {
+      closeModal()
+      if (toast && msg) showSuccessToast(msg)
+    }
+    try {
+      await window.electronAPI.checkDataSync().then(async (r) => {
+        if (!r?.ok) {
+          result.dataError = r?.error || 'Không kiểm tra được bản cập nhật dữ liệu'
+          return
+        }
+        result.dataLatest = r.latest || ''
+        const needsSync = !r.installed || (r.installed && r.hasUpdate)
+        if (needsSync) {
+          setDataUpdate(true)
+          setDataUpdateVer(r.latest || '')
+          if (!r.installed) {
+            setDSync({ active: true, closing: false, phase: 'check', item: 'Dữ liệu gốc', percent: 0, log: 'Chưa có dữ liệu — đang tải lần đầu...' })
+          } else {
+            setDSync({ active: true, closing: false, phase: 'check', item: 'Dữ liệu gốc', percent: 0, log: `Có bản dữ liệu mới (${r.latest}) — đang cập nhật...` })
+          }
+          const syncRes = await window.electronAPI.runDataSync().catch(() => null)
+          if (syncRes && syncRes.ok === true) {
+            result.dataUpdate = false
+            setDataUpdate(false)
+            if (syncRes.skipped) {
+              closeAndMaybeToast(`Dữ liệu đã mới nhất (${r.latest})`)
+            } else {
+              closeAndMaybeToast(`Đã cập nhật dữ liệu (${r.latest})`)
+            }
+          } else if (syncRes && syncRes.ok === false && !syncRes.paused && !syncRes.cancelled) {
+            setDlError({ type: 'data', message: syncRes.error || 'Lỗi tải dữ liệu', stack: syncRes.stack })
+            closeModal()
+          } else {
+            result.dataUpdate = true
+            closeModal()
+          }
+        } else {
+          result.dataUpdate = false
+          closeAndMaybeToast(`Dữ liệu đã mới nhất (${r.latest || 'đã kiểm tra'})`)
+        }
+      }).catch(() => { result.dataError = 'Không kết nối được để kiểm tra cập nhật.'; closeModal() })
+    } finally {
+      checkingUpdatesRef.current = false
+      setCheckingUpdates(false)
+    }
+  }
+
+  
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI.checkDataSync) return
+    if (dSyncChecked.current || profiles.length === 0) return
+    dSyncChecked.current = true
+    checkDataVersions()
+  }, [profiles])
+
+  
+  
+  
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI.preDownload) return
+    if (preDlStarted.current || profiles.length === 0) return
+    preDlStarted.current = true
+    const pid = profiles[0]?.id
+    if (!pid) return
+    const checkReadyAndRun = () => {
+      if (dSyncRef.current?.active && !dSyncRef.current?.closing) {
+        setTimeout(checkReadyAndRun, 2000)
+        return
+      }
+      window.electronAPI.hasGameResources?.({ profileId: pid })
+        .then(st => {
+          if (st?.ready) return
+          setPreDl({ active: true, phase: 'waiting', item: 'Đang chuẩn bị', percent: 0, eta: null, log: 'Bắt đầu tải tài nguyên...', phases: {}, closing: false })
+          return window.electronAPI.preDownload({ profileId: pid })
+        })
+        .then(res => {
+          if (res && res.ok === false && !res.paused && !res.cancelled) {
+            setDlError({ type: 'resource', message: res.error || 'Lỗi tải tài nguyên' })
+          }
+        })
+        .catch(() => {})
+    }
+    const t = setTimeout(checkReadyAndRun, 3000)
+    return () => clearTimeout(t)
+  }, [profiles])
+
+  useEffect(() => {
+    if (!isElectron) return
+    window.electronAPI.getProfiles().then(data => {
+      if (!initLoaded.current) {
+        setProfiles(data.profiles || [])
+        initLoaded.current = true
+      }
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    onLogPanelOpen?.(false)
+  }, [onLogPanelOpen])
+
+  async function handleProfileUpdated(updatedProfile) {
+    initLoaded.current = true
+    if (updatedProfile?.id) {
+      setProfiles(prev => {
+        const idx = prev.findIndex(p => p.id === updatedProfile.id)
+        if (idx !== -1) {
+          const arr = [...prev]; arr[idx] = updatedProfile; return arr
+        }
+        return prev
+      })
+    } else if (isElectron) {
+      try {
+        const data = await window.electronAPI.getProfiles()
+        setProfiles(data.profiles || [])
+      } catch {}
+    }
+  }
+
+  const currentProfile = profiles[0] || null
+  const colors = LOADER_COLORS[currentProfile?.loader] || LOADER_COLORS.vanilla
+  const profileIcon = currentProfile?.importIconUrl || LOADER_ICONS[currentProfile?.loader] || vanillaIcon
+
+  
+  function getProfileInstance(profileId, accountId) {
+    if (!instances || !profileId) return null
+    const exact = instances.find(inst =>
+      inst.profileId === profileId &&
+      inst.state !== 'stopped' &&
+      (!accountId || inst.accountId === accountId)
+    )
+    if (exact) return exact
+    
+    return instances.find(inst =>
+      inst.profileId === profileId && inst.state !== 'stopped'
+    ) || null
+  }
+
+  function getProfileState(profileId, accountId) {
+    const inst = getProfileInstance(profileId, accountId)
+    if (!inst) return 'idle'
+    return inst.state 
+  }
+
+  function playSelectSound() {}
+  function playClickSound() {}
+
+  function handleLaunch(profileId, ramMb, profileName, accountName, serverAddress, explicitAccountId) {
+    const pid = profileId || currentProfile?.id
+    const p = profiles.find(x => x.id === pid) || currentProfile
+    if (!p) return
+    const accId = explicitAccountId || selectedAccount?.id
+    onLaunch(pid, ramMb || (p.ramGb || 4) * 1024, profileName || p.name, accountName || selectedAccount?.username || '', serverAddress, accId)
+  }
+
+  function handleKill(profileId, accountId) {
+    const inst = accountId ? getProfileInstance(profileId, accountId) : getProfileInstance(profileId)
+    if (!inst || !onKillInstance) return
+    onKillInstance(inst.key)
+  }
+
+  
+  async function saveAccountAndLaunch() {
+    const name = usernameInput.trim()
+    if (!name) {
+      setUsernameError('Nhập tên trước!')
+      usernameRef.current?.focus()
+      return
+    }
+    if (name.length < 3 || name.length > 16) { setUsernameError('Tên 3–16 ký tự'); return }
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) { setUsernameError('Chỉ dùng a-z, 0-9, _'); return }
+    setUsernameError('')
+
+    let accId = selectedAccount?.id
+    const existing = accounts.find(a => a.username === name && a.type === 'offline')
+    if (existing) {
+      accId = existing.id
+      await selectAccount(existing.id)
+    } else {
+      const result = await addAccount({ type: 'offline', username: name })
+      if (result?.error) { setUsernameError(result.error); return }
+      
+      accId = offlineUUID(name)
+      await selectAccount(accId)
+    }
+
+    syncThenLaunch(undefined, undefined, undefined, name, serverStatus?.server?.ip, accId)
+  }
+
+  
+  async function syncThenLaunch(profileId, ramMb, profileName, accountName, serverAddress, accId) {
+    if (isElectron && window.electronAPI.runDataSync && dataUpdate) {
+      setDSync({ active: true, closing: false, phase: 'check', item: 'Kiểm tra cập nhật', percent: 0, log: 'Có bản cập nhật — đang tải về temp...' })
+      const res = await window.electronAPI.runDataSync().catch(() => null)
+      if (res && res.ok === false) {
+        if (res.paused) return 
+        setDataUpdate(false)
+        setDlError({ type: 'data', message: res.error || 'Lỗi tải dữ liệu server', stack: res.stack })
+        return 
+      }
+      setDataUpdate(false)
+      
+      if (res && res.skippedFiles && res.skippedFiles.length) {
+        const list = res.skippedFiles.slice(0, 20).map(s => `• ${s.file} (${s.error})`).join('\n')
+        const more = res.skippedFiles.length > 20 ? `\n... còn ${res.skippedFiles.length - 20} file nữa` : ''
+        setDlError({ type: 'data', message: `Một số file bị lỗi quyền và đã được bỏ qua (${res.skippedFiles.length}):\n${list}${more}` })
+      }
+    }
+    await waitForDSyncClosed()
+    handleLaunch(profileId, ramMb, profileName, accountName, serverAddress, accId)
+  }
+
+  function waitForDSyncClosed() {
+    return new Promise(resolve => {
+      const check = () => {
+        if (!dSyncRef.current?.active) resolve()
+        else setTimeout(check, 150)
+      }
+      check()
+    })
+  }
+
+  
+  const busyDownloading = (preDl?.active && !preDl.closing) || (dSync?.active && !dSync.closing) || (repair?.active && !repair.closing)
+
+  
+  const preDlPhases = preDl?.phases ? Object.values(preDl.phases) : []
+  const preDlTotal = preDlPhases.length
+    ? preDlPhases.reduce((s, p) => s + (p.percent || 0), 0) / preDlPhases.length
+    : (preDl?.percent || 0)
+  const overallPct = dSync?.active && !dSync.closing
+    ? (dSync.percent || 0)
+    : (repair?.active && !repair.closing
+        ? (repair.percent || 0)
+        : (preDl?.active && !preDl.closing ? preDlTotal : 0))
+  const busyStartRef = useRef(null)
+  const [pausedOp, setPausedOp] = useState(null)
+  const [dlError, setDlError] = useState(null)
+  const [successToast, setSuccessToast] = useState(null)
+  useEffect(() => {
+    preDlRef.current = preDl
+    dSyncRef.current = dSync
+  }, [preDl, dSync])
+  useEffect(() => {
+    if (busyDownloading && !busyStartRef.current) busyStartRef.current = Date.now()
+    if (!busyDownloading) { busyStartRef.current = null; setPausedOp(null) }
+  }, [busyDownloading])
+  let overallEta = null
+  if (busyDownloading && busyStartRef.current && overallPct > 2 && overallPct < 100) {
+    const elapsed = Date.now() - busyStartRef.current
+    overallEta = fmtEta(Math.round((elapsed / overallPct) * (100 - overallPct)))
+  }
+
+  const activeOp = pausedOp
+    || (dSync?.active && !dSync.closing ? 'dSync' : null)
+    || (repair?.active && !repair.closing ? 'repair' : null)
+    || (preDl?.active && !preDl.closing ? 'preDl' : null)
+  const isPaused = pausedOp && busyDownloading
+  const isPausedAny = pausedOp != null
+
+  function showSuccessToast(msg) {
+    setSuccessToast(msg)
+    clearTimeout(showSuccessToast._t)
+    showSuccessToast._t = setTimeout(() => setSuccessToast(null), 3000)
+  }
+
+  async function startRepair() {
+    if (!isElectron || !window.electronAPI.runRepairDataSync) return
+    if (busyDownloading) return
+    setProfileSettingsOpen(false)
+    setRepair({ active: true, closing: false, phase: 'clean', item: 'Dọn dữ liệu cũ', percent: 0, log: 'Đang xóa dữ liệu cũ...' })
+    const res = await window.electronAPI.runRepairDataSync().catch(() => null)
+    if (res && res.ok === false) {
+      if (res.paused || res.cancelled) return
+      setDlError({ type: 'repair', message: res.error || 'Lỗi sửa chữa profile', stack: res.stack })
+      return
+    }
+    if (res?.ok) showSuccessToast('Đã sửa chữa profile thành công')
+  }
+
+  function togglePause() {
+    if (isPaused) {
+      
+      setPausedOp(null)
+      if (pausedOp === 'preDl' && window.electronAPI.preDownload) {
+        window.electronAPI.preDownload({ profileId: currentProfile?.id }).catch(() => {})
+      } else if (pausedOp === 'dSync' && window.electronAPI.runDataSync) {
+        window.electronAPI.runDataSync().catch(() => {})
+      }
+      return
+    }
+    if (!activeOp) return
+    window.electronAPI.dataControl?.({ op: activeOp, action: 'pause' })
+    setPausedOp(activeOp)
+  }
+
+  function handlePlayClick() {
+    if (busyDownloading) return
+    playClickSound()
+    if (playing) {
+      handleKill(currentProfile?.id, selectedAccount?.id)
+      return
+    }
+    saveAccountAndLaunch()
+  }
+
+  const currentInst = getProfileInstance(currentProfile?.id, selectedAccount?.id)
+  const playing = getProfileState(currentProfile?.id, selectedAccount?.id) === 'running'
+  const downloading = getProfileState(currentProfile?.id, selectedAccount?.id) === 'downloading'
+  const currentProgress = currentInst?.progress
+
+  
+  useEffect(() => {
+    if (launchState === 'downloading') {
+      setLogPanelVisible(true)
+      setLogManuallyClosed(false)
+      setPersistedLauncherLogs([])
+      newLaunchRef.current = true
+    } else if (launchState === 'running') {
+      newLaunchRef.current = false
+    }
+  }, [launchState])
+
+  
+  useEffect(() => {
+    const ll = currentInst?.logs
+    if (ll?.length > 0) {
+      setPersistedLauncherLogs(ll)
+    }
+  }, [currentInst?.logs])
+
+  
+  const displayLogs = currentInst?.logs || persistedLauncherLogs
+
+  function handleCloseLogPanel() {
+    setLogPanelVisible(false)
+    setLogManuallyClosed(true)
+  }
+
+  function handleReopenLog() {
+    setLogPanelVisible(true)
+    setLogManuallyClosed(false)
+  }
+
+  return (
+    <div className="home-enter w-full h-full flex flex-col relative overflow-hidden select-none">
+      <AppBackground />
+
+      <style dangerouslySetInnerHTML={{__html:[
+        '@property --ca { syntax: \'<angle>\'; inherits: true; initial-value: 0deg; }',
+        '.glow-play{position:relative;overflow:visible;border-radius:1rem;--ep:100}',
+        '.glow-play .glow-inner{position:relative;z-index:1;border-radius:1rem;background:rgba(20,20,28,0.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}',
+        '.glow-play .glow-btn{display:flex;align-items:center;gap:.5rem;height:4rem;padding:0 2.5rem;background:transparent;border:none;color:#fff;font-weight:700;font-size:1.1rem;cursor:pointer}',
+        '.glow-play .glow-edge{position:absolute;inset:-25px;border-radius:inherit;z-index:0;pointer-events:none;opacity:calc((var(--ep,0) - 30)/70);transition:opacity .12s ease-out;-webkit-mask-image:conic-gradient(from var(--ca,0deg) at center,#000 5%,transparent 15%,transparent 85%,#000 95%);mask-image:conic-gradient(from var(--ca,0deg) at center,#000 5%,transparent 15%,transparent 85%,#000 95%);mix-blend-mode:plus-lighter;animation:glow-rotate 3.5s linear infinite}',
+        '.glow-play .glow-edge::before{content:"";position:absolute;inset:25px;border-radius:inherit;box-shadow:0 0 0 1.5px var(--gc),0 0 12px 3px color-mix(in srgb,var(--gc) 45%,transparent),inset 0 0 0 1.5px var(--gc),inset 0 0 10px 0 color-mix(in srgb,var(--gc) 35%,transparent)}',
+        '@keyframes glow-rotate{from{--ca:0deg}to{--ca:360deg}}',
+        '.home-enter{animation:home-slide-in .5s cubic-bezier(0.22,1,0.36,1) both}',
+        '@keyframes home-slide-in{from{opacity:0;transform:translateX(48px)}to{opacity:1;transform:translateX(0)}}',
+      ].join('')}} />
+
+      <SystemInfo />
+
+      {}
+      <div className="flex-1 flex flex-col justify-center">
+        <div className="flex flex-col items-center gap-5 px-6">
+          {}
+          <div className="w-full max-w-[460px] rounded-2xl blur-glass bg-black/10 backdrop-blur-[2px] border border-white/10 p-6 text-center">
+            <img src={dragonfyreLogo} alt="Dragonfyre Realms" className="mx-auto h-16 object-contain drop-shadow-xl" draggable={false} />
+
+            <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold"
+                style={{ color: '#facc15', borderColor: '#facc1555', background: '#facc151a' }}>
+                Forge 1.20.1
+              </span>
+              {[
+                { label: 'Fantasy',   Icon: Sword,     color: '#a78bfa' },
+                { label: 'Survival',  Icon: Campfire,  color: '#34d399' },
+                { label: 'Realistic', Icon: Mountains, color: '#60a5fa' },
+              ].map(({ label, Icon, color }) => (
+                <span key={label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold"
+                  style={{ color, borderColor: `${color}55`, background: `${color}1a` }}>
+                  <Icon size={15} weight="duotone" />
+                  {label}
+                </span>
+              ))}
+            </div>
+
+            {}
+            <div className="flex items-center justify-center gap-3 mt-5">
+              {!serverStatus ? (
+                <>
+                  <span className="w-3 h-3 rounded-full bg-white/25 animate-pulse" />
+                  <span className="text-lg font-bold text-white/50">Đang ping...</span>
+                </>
+              ) : serverStatus.error ? (
+                <>
+                  <span className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,.8)]" />
+                  <span className="text-lg font-bold text-white/70">Offline</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,.9)]" />
+                  <span className="text-lg font-bold text-white">Online</span>
+                  <span className="text-lg font-bold text-emerald-400">{serverStatus.ping} ms</span>
+                  <span className="text-sm text-white/50">{serverStatus.players}/{serverStatus.maxPlayers} players</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {}
+          <div className="w-full max-w-[460px] rounded-2xl blur-glass bg-black/10 backdrop-blur-[2px] border border-white/10 px-5 py-4">
+            <p className="text-sm text-white/50">Launcher hiện tại: 1.20.1</p>
+
+            <div className="h-px bg-white/10 my-3" />
+            <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Yêu cầu cấu hình</p>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white/10 text-white/60 flex-shrink-0">Tối thiểu</span>
+                <Memory size={14} weight="duotone" className="text-cyan-400 flex-shrink-0" />
+                <span className="text-[11px] text-white/70">4GB RAM</span>
+                <GraphicsCard size={14} weight="duotone" className="text-emerald-400 ml-1 flex-shrink-0" />
+                <span className="text-[11px] text-white/70">Intel HD Graphics 500+</span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 flex-shrink-0">Đề xuất</span>
+                <Memory size={14} weight="duotone" className="text-cyan-400 flex-shrink-0" />
+                <span className="text-[11px] text-white/70">12GB RAM</span>
+                <GraphicsCard size={14} weight="duotone" className="text-emerald-400 ml-1 flex-shrink-0" />
+                <span className="text-[11px] text-white/70">RTX 2060+</span>
+              </div>
+            </div>
+          </div>
+
+          {}
+          <div className="w-full max-w-[460px]">
+            <div
+              className="flex items-center gap-2 rounded-2xl blur-glass border border-white/15 px-3 py-2"
+              style={{ backgroundColor: 'rgba(20,20,28,0.35)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+            >
+              <div className="w-11 h-11 rounded-xl overflow-hidden bg-white/5 flex-shrink-0">
+                <PlayerHead
+                  uuid={usernameInput.trim().length >= 3 ? offlineUUID(usernameInput.trim()) : null}
+                  username={usernameInput.trim() || 'Player'}
+                  size={44}
+                />
+              </div>
+              <input
+                ref={usernameRef}
+                type="text"
+                value={usernameInput}
+                onChange={e => { setUsernameInput(e.target.value); setUsernameError('') }}
+                onKeyDown={e => { if (e.key === 'Enter') saveAccountAndLaunch() }}
+                placeholder="Tên người chơi..."
+                maxLength={16}
+                className="flex-1 min-w-0 bg-transparent px-1 py-2.5 text-base text-white placeholder-white/25 focus:outline-none"
+              />
+              <button
+                onClick={() => { playClickSound(); saveAccountAndLaunch() }}
+                className="w-11 h-11 rounded-xl bg-violet-400 text-black flex items-center justify-center hover:bg-violet-300 transition-all active:scale-95 flex-shrink-0"
+                data-tip="Xác nhận"
+              >
+                <Check size={22} weight="bold" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+        {successToast && (
+          <p className="text-sm font-bold text-white bg-emerald-600 px-3 py-1.5 rounded-lg shadow-lg">{successToast}</p>
+        )}
+        {usernameError && (
+          <p className="text-sm font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg">{usernameError}</p>
+        )}
+        {currentProfile && (
+          <div
+            ref={profileMenuPanelRef}
+            className={`flex items-center gap-2 transition-all duration-200 origin-bottom ${
+              profileMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none h-0 overflow-hidden'
+            }`}
+          >
+            <button
+              onClick={() => { setFilesModalOpen(true); setProfileMenuOpen(false); playClickSound() }}
+              className="w-14 h-14 blur-glass rounded-2xl border border-white/15 flex items-center justify-center transition-all text-cyan-400 hover:text-white hover:bg-white/10 hover:-translate-y-1 hover:scale-110"
+              style={{ backgroundColor: 'rgba(10,10,16,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+              data-tip="Quản lý file profile"
+            >
+              <FolderOpen size={26} weight="duotone" />
+            </button>
+            <button
+              onClick={() => { logPanelVisible ? handleCloseLogPanel() : handleReopenLog(); playClickSound(); setProfileMenuOpen(false) }}
+              className={`w-14 h-14 blur-glass rounded-2xl border flex items-center justify-center transition-all hover:-translate-y-1 hover:scale-110 ${
+                logPanelVisible ? 'border-violet-400/30 text-violet-300 bg-violet-500/15' : 'border-white/15 text-white/60 hover:text-white hover:bg-white/10'
+              }`}
+              style={{ backgroundColor: logPanelVisible ? undefined : 'rgba(10,10,16,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+              data-tip="Mở log"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+                <path d="M7 9h10v2H7zm0 3h7v2H7zm0-6h10v2H7z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => { setProfileSettingsOpen(true); setProfileMenuOpen(false); playClickSound() }}
+              className="w-14 h-14 blur-glass rounded-2xl border border-white/15 flex items-center justify-center transition-all text-violet-400 hover:text-white hover:bg-white/10 hover:-translate-y-1 hover:scale-110"
+              style={{ backgroundColor: 'rgba(10,10,16,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+              data-tip="Mở profile settings"
+            >
+              <Gear size={26} weight="duotone" />
+            </button>
+          </div>
+        )}
+        <div className="flex items-center gap-3" ref={profileMenuRef}>
+          {}
+          <div
+            className="rounded-2xl blur-glass overflow-hidden border border-white/15 transition-all active:scale-95"
+            style={{ backgroundColor: 'rgba(20,20,28,0.35)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+          >
+            <button
+              onClick={() => {
+                if (busyDownloading || checkingUpdates) return
+                playClickSound()
+                checkDataVersions({ toast: true })
+              }}
+              className="w-14 h-14 flex items-center justify-center transition-colors text-emerald-400 hover:text-white"
+              data-tip="Kiểm tra cập nhật dữ liệu"
+            >
+              <ArrowClockwise size={26} weight="duotone" className={checkingUpdates ? 'animate-spin' : ''} />
+            </button>
+          </div>
+
+          {}
+          {playing ? (
+            <button
+              onClick={handlePlayClick}
+              className="flex items-center gap-2 px-10 h-16 rounded-2xl font-bold text-lg transition-all hover:brightness-110 active:scale-95 bg-red-500/80 hover:bg-red-500 text-white"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+              {t('homepage.launch.kill')}
+            </button>
+          ) : downloading ? (
+            <button
+              disabled
+              className="flex items-center gap-2 px-10 h-16 rounded-2xl font-bold text-lg text-black/80 cursor-not-allowed"
+              style={{ background: colors.primary, opacity: 0.75 }}
+            >
+              <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              {currentProgress?.percent != null ? `${currentProgress.percent}%` : '...'}
+            </button>
+          ) : (
+            <div className="glow-play" style={{ '--gc': isPaused ? '#f59e0b' : (dataUpdate ? '#a78bfa' : colors.primary) }}>
+              <span className="glow-edge" />
+              <div className="glow-inner">
+<button
+              onClick={handlePlayClick}
+              className="glow-btn transition-transform hover:scale-105 active:scale-95"
+            >
+                  {busyDownloading ? (
+                    isPaused ? (
+                      <>
+                        <PlayCircle size={26} weight="fill" className="text-amber-400" />
+                        <span className="text-amber-300">Tiếp tục</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="relative w-9 h-9 flex-shrink-0">
+                          <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="#a78bfa" strokeWidth="4" strokeLinecap="round"
+                              strokeDasharray={`${2 * Math.PI * 15}`}
+                              strokeDashoffset={`${2 * Math.PI * 15 * (1 - (overallPct || 0) / 100)}`}
+                              style={{ transition: 'stroke-dashoffset .3s ease' }} />
+                          </svg>
+                          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                            {Math.round(overallPct || 0)}%
+                          </span>
+                        </div>
+                        <span className="text-left leading-tight">
+                          <span className="block text-xs font-bold text-white">Đang tải...</span>
+                          {overallEta && <span className="block text-[10px] text-white/60">còn {overallEta}</span>}
+                        </span>
+                      </>
+                    )
+                  ) : dataUpdate ? (
+                    <>
+                      <ArrowClockwise size={26} weight="duotone" className="text-violet-400 spin-pulse" />
+                      <span className="text-violet-200">Update {dataUpdateVer}</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlayCircle size={26} weight="fill" className="text-violet-400" />
+                      <span>{t('gaming.play')}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {}
+          {currentProfile && (
+            <div className="relative">
+              <div
+                className="rounded-2xl blur-glass border border-white/15 overflow-hidden transition-all active:scale-95"
+                style={{ backgroundColor: 'rgba(20,20,28,0.35)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+              >
+                <button
+                  onClick={() => { setProfileMenuOpen(v => !v); playClickSound() }}
+                  className="w-14 h-14 flex items-center justify-center transition-colors text-white/70 hover:text-white"
+                  data-tip="Menu profile"
+                >
+                  <SlidersHorizontal size={26} weight="duotone" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {logPanelVisible && (
+        <div className="absolute bottom-[180px] left-1/2 -translate-x-1/2 z-[90]">
+          <LogPanel logs={displayLogs} onClose={handleCloseLogPanel} />
+        </div>
+      )}
+
+      {preDl?.active && (
+        <div className={`absolute bottom-[116px] left-1/2 -translate-x-1/2 w-[380px] max-w-[80vw] ${preDl.closing ? 'preDl-down' : 'preDl-modal'}`}>
+          <div className="rounded-2xl bg-[#12101c] border border-white/10 p-4">
+            {}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className={`animate-spin w-3.5 h-3.5 ${preDl.phase === 'done' ? 'text-green-400' : 'text-violet-400'}`} viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                <span className="text-xs font-bold text-white">
+                  {preDl.phase === 'done' ? 'Hoàn tất tải tài nguyên' : 'Đang tải tài nguyên'}
+                </span>
+              </div>
+              <button
+                onClick={() => { window.electronAPI.dataControl?.({ op: 'preDl', action: 'cancel' }); setPausedOp(null); setPreDl(prev => prev ? { ...prev, active: false } : prev) }}
+                className="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+                data-tip="Đóng"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+
+            {}
+            <p className="text-[12px] font-semibold text-white mt-2 leading-relaxed break-words max-h-[60px] overflow-hidden">{preDl.log}</p>
+
+            {}
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className={`font-bold ${preDl.phase === 'done' ? 'text-emerald-300' : 'text-white'}`}>
+                  {preDl.item || '...'}
+                </span>
+                <span className="text-white/80 font-mono font-semibold flex items-center gap-2">
+                  {preDl.phase !== 'done' && preDl.eta && <span className="text-white/70">còn {preDl.eta}</span>}
+                  {Math.round(preDl.percent || 0)}%
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-1">
+                <div className="h-full rounded-full transition-all duration-300 relative overflow-hidden"
+                  style={{ width: `${Math.max(0, Math.min(100, preDl.percent || 0))}%`, background: preDl.phase === 'done' ? '#34d399' : '#a78bfa' }}>
+                  {preDl.phase !== 'done' && preDl.phase !== 'paused' && (
+                    <span className="progress-shine absolute inset-0" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dSync?.active && !(preDl?.active && !preDl.closing) && (
+        <div className={`absolute bottom-[116px] left-1/2 -translate-x-1/2 w-[380px] max-w-[80vw] ${dSync.closing ? 'preDl-down' : 'preDl-modal'}`}>
+          <div className="rounded-2xl bg-[#12101c] border border-white/10 p-4">
+            {}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className={`animate-spin w-3.5 h-3.5 ${dSync.phase === 'done' ? 'text-green-400' : 'text-violet-400'}`} viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                <span className="text-xs font-bold text-white">
+                  {dSync.phase === 'done' ? 'Hoàn tất đồng bộ dữ liệu' : 'Đồng bộ dữ liệu server'}
+                </span>
+              </div>
+              <button
+                onClick={() => { window.electronAPI.dataControl?.({ op: 'dSync', action: 'cancel' }); setPausedOp(null); setDSync(prev => prev ? { ...prev, active: false } : prev) }}
+                className="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+                data-tip="Đóng"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+
+            {}
+            <p className="text-[12px] font-semibold text-white mt-2 leading-relaxed break-words max-h-[60px] overflow-hidden">{dSync.log}</p>
+
+            {}
+            <div className="mt-3">
+              {dSync.phase === 'extract' ? (
+                <div className="flex items-center gap-2 text-xs">
+                  <svg className="animate-spin w-3.5 h-3.5 text-violet-400 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                  <span className="font-bold text-white">{dSync.item || 'Giải nén'}</span>
+                  <span className="text-white/60">— Xin vui lòng chờ...</span>
+                </div>
+              ) : (
+              <>
+              <div className="flex items-center justify-between text-xs">
+                <span className={`font-bold ${dSync.phase === 'done' ? 'text-emerald-300' : 'text-white'}`}>
+                  {dSync.item || '...'}
+                </span>
+                <span className="text-white/80 font-mono font-semibold">{Math.round(dSync.percent || 0)}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-1">
+                <div className="h-full rounded-full transition-all duration-300 relative overflow-hidden"
+                  style={{ width: `${Math.max(0, Math.min(100, dSync.percent || 0))}%`, background: dSync.phase === 'done' ? '#34d399' : '#a78bfa' }}>
+                  {dSync.phase !== 'done' && dSync.phase !== 'paused' && (
+                    <span className="progress-shine absolute inset-0" />
+                  )}
+                </div>
+              </div>
+              {dSync.downloaded != null && (
+                <p className="text-[11px] font-medium text-white/80 mt-1.5 font-mono">
+                  Đã tải: {fmtBytes(dSync.downloaded)} / {fmtBytes(dSync.total)} {dSync.done != null && dSync.total != null && dSync.phase === 'sync' ? `(${dSync.done}/${dSync.total} files)` : ''}
+                  {dSync.speed != null && dSync.speed > 0 && dSync.phase === 'download' && (
+                    <span className="text-emerald-300"> · {fmtSpeed(dSync.speed)}/s</span>
+                  )}
+                </p>
+              )}
+              </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {repair?.active && (
+        <div className={`absolute bottom-[116px] left-1/2 -translate-x-1/2 w-[380px] max-w-[80vw] ${repair.closing ? 'preDl-down' : 'preDl-modal'}`}>
+          <div className="rounded-2xl bg-[#12101c] border border-white/10 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className={`animate-spin w-3.5 h-3.5 ${repair.phase === 'done' ? 'text-green-400' : 'text-red-400'}`} viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                <span className="text-xs font-bold text-white">
+                  {repair.phase === 'done' ? 'Sửa chữa hoàn tất' : 'Đang sửa chữa profile'}
+                </span>
+              </div>
+              <button
+                onClick={() => { window.electronAPI.dataControl?.({ op: 'repair', action: 'cancel' }); setPausedOp(null); setRepair(prev => prev ? { ...prev, active: false } : prev) }}
+                className="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+                data-tip="Đóng"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-[12px] font-semibold text-white mt-2 leading-relaxed break-words max-h-[60px] overflow-hidden">{repair.log}</p>
+
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className={`font-bold ${repair.phase === 'done' ? 'text-emerald-300' : 'text-white'}`}>
+                  {repair.item || '...'}
+                </span>
+                <span className="text-white/80 font-mono font-semibold">{Math.round(repair.percent || 0)}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-1">
+                <div className="h-full rounded-full transition-all duration-300 relative overflow-hidden"
+                  style={{ width: `${Math.max(0, Math.min(100, repair.percent || 0))}%`, background: repair.phase === 'done' ? '#34d399' : '#f87171' }}>
+                  {repair.phase !== 'done' && repair.phase !== 'paused' && (
+                    <span className="progress-shine absolute inset-0" />
+                  )}
+                </div>
+              </div>
+              {repair.downloaded != null && (
+                <p className="text-[11px] font-medium text-white/80 mt-1.5 font-mono">
+                  Đã tải: {fmtBytes(repair.downloaded)} / {fmtBytes(repair.total)}
+                  {repair.speed != null && repair.speed > 0 && repair.phase === 'download' && (
+                    <span className="text-emerald-300"> · {fmtSpeed(repair.speed)}/s</span>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {profileSettingsOpen && currentProfile && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[150] p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setProfileSettingsOpen(false) }}
+        >
+          <GamingModalWrapper
+            onClose={() => setProfileSettingsOpen(false)}
+            className="border border-blue-500/15 rounded-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[65vh]"
+            style={{ background: 'linear-gradient(165deg, #0c1526 0%, #05070d 55%, #03040a 100%)', marginTop: '80px', marginBottom: '80px' }}
+          >
+            <ProfileSettingsPanel
+              profile={currentProfile}
+              accountId={accountId}
+              onClose={() => setProfileSettingsOpen(false)}
+              onProfileUpdated={handleProfileUpdated}
+              onRepair={startRepair}
+              repairing={repair?.active && !repair.closing}
+            />
+          </GamingModalWrapper>
+        </div>
+      )}
+
+      <DownloadErrorModal error={dlError} onClose={() => setDlError(null)} />
+      {filesModalOpen && currentProfile && (
+        <ProfileFilesModal profile={currentProfile} onClose={() => setFilesModalOpen(false)} />
+      )}
+    </div>
+  )
+}

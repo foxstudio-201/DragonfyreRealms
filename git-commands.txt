@@ -1,0 +1,101 @@
+Git Commands & Build Guide - Dragonfyre Realms
+==========================================
+
+=== PUSH CODE LÊN GITHUB ===
+
+1. Stage tất cả thay đổi:
+   git add -A
+
+2. Commit:
+   git commit -m "feat: mô tả thay đổi"
+
+3. Pull rebase (nếu remote có commit mới hơn):
+   git pull --rebase origin main
+
+4. Push lên GitHub:
+   git push -u origin main
+
+
+=== TẠO RELEASE MỚI (tự động build trên GitHub) ===
+
+Cách 1 — Push tag để trigger GitHub Actions tự động build + tạo release:
+
+   git tag v1.0.0
+   git push origin v1.0.0
+
+   → GitHub Actions sẽ tự động:
+     1. Build Vite (React)
+     2. Build Electron installer (.exe)
+     3. Tạo GitHub Release với file đính kèm
+
+Cách 2 — Chạy thủ công trên GitHub:
+   1. Vào tab "Actions" trên GitHub
+   2. Chọn workflow "Build & Release"
+   3. Click "Run workflow"
+
+
+=== BUILD LOCAL (Windows) ===
+
+Yêu cầu: Chạy với quyền Administrator
+
+   build-win.bat  (click phải → Run as administrator)
+
+Output: dist-electron\
+  - Dragonfyre Realms Setup x.x.x.exe   (installer)
+  - Dragonfyre Realms x.x.x.exe         (portable)
+
+
+=== CODE SIGNING ===
+
+Tạo self-signed certificate (chạy PowerShell với quyền Admin):
+   .\scripts\create-self-signed-cert.ps1
+
+Certificate được lưu tại: certs\code-signing.pfx
+Password mặc định: Dragonfyre Realms2024
+
+Để dùng cert trên GitHub Actions:
+   1. Encode cert sang base64:
+      [Convert]::ToBase64String([IO.File]::ReadAllBytes("certs\code-signing.pfx")) | clip
+
+   2. Vào GitHub repo → Settings → Secrets and variables → Actions
+   3. Thêm 2 secrets:
+      - CSC_BASE64    = (paste base64 từ bước 1)
+      - CSC_KEY_PASSWORD = Dragonfyre Realms2024
+
+
+=== CẬP NHẬT VERSION ===
+
+Sửa version trong package.json, sau đó:
+
+   git add package.json
+   git commit -m "chore: bump version to 1.x.x"
+   git push
+   git tag v1.x.x
+   git push origin v1.x.x
+
+
+=== CÁC LỆNH GIT HỮU ÍCH ===
+
+Xem lịch sử commit:
+   git log --oneline -10
+
+Xem trạng thái file:
+   git status
+
+Xem các tag đã tạo:
+   git tag
+
+Xóa tag local (nếu tạo nhầm):
+   git tag -d v1.0.0
+
+Xóa tag remote:
+   git push origin --delete v1.0.0
+
+Xem remote URL:
+   git remote -v
+
+push web 
+
+git add .
+git commit -m "message"
+git push
