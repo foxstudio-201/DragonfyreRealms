@@ -118,7 +118,7 @@ function resolveTrayIconPath() {
 
 const ICON_PATH     = resolveIconPath()
 const TRAY_ICON_PATH = resolveTrayIconPath()
-const SERVER_ADDRESS = '116.96.114.19:25565'
+const SERVER_ADDRESS = '42.112.81.63:11099'
 const ACCOUNTS_DIR  = path.join(app.getPath('appData'), '.DragonfyreRealms')
 const ACCOUNTS_FILE = path.join(ACCOUNTS_DIR, 'accounts.json')
 
