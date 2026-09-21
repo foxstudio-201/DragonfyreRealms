@@ -118,7 +118,7 @@ function resolveTrayIconPath() {
 
 const ICON_PATH     = resolveIconPath()
 const TRAY_ICON_PATH = resolveTrayIconPath()
-const SERVER_ADDRESS = '42.112.81.63:11099'
+const SERVER_ADDRESS = 'dragonfyre.edolasvn.net:11099'
 const ACCOUNTS_DIR  = path.join(app.getPath('appData'), '.DragonfyreRealms')
 const ACCOUNTS_FILE = path.join(ACCOUNTS_DIR, 'accounts.json')
 
@@ -565,7 +565,7 @@ app.whenReady().then(() => {
           "font-src 'self' data:;" +
           "img-src 'self' data: blob: https:;" +
           "frame-src https://www.youtube-nocookie.com https://www.youtube.com https://youtube-nocookie.com https://youtube.com;" +
-          "connect-src 'self' blob: http://localhost:5173 ws://localhost:5173 https://minotar.net https://crafthead.net https://mc-heads.net https://meta.fabricmc.net https://maven.fabricmc.net https://files.minecraftforge.net https://repo1.maven.org https://maven.neoforged.net https://api.foxstudio.site https://api.github.com https://github.com https://raw.githubusercontent.com https://voxelx.io.vn https://www.voxelx.io.vn https://foxstudio.site;"
+          "connect-src 'self' blob: http://localhost:5173 ws://localhost:5173 https://minotar.net https://crafthead.net https://mc-heads.net https://meta.fabricmc.net https://maven.fabricmc.net https://files.minecraftforge.net https://repo1.maven.org https://maven.neoforged.net https://api.foxstudio.site https://api.github.com https://github.com https://raw.githubusercontent.com https://foxstudio.site;"
         ],
       },
     })
